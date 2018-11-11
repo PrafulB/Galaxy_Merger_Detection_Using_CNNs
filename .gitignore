@@ -1,0 +1,4 @@
+*.sbatch
+*.out
+dataset/
+*.swp*
