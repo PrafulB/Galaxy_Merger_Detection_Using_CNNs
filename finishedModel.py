@@ -134,9 +134,9 @@ def generateModel(mode, optimizer, lossFn="categorical_crossentropy", metrics=['
     return model
 
 
-def retrieveModelFromCheckpoint(checkpointsPath, trainFromEpoch, optimizer=SGD(lr=0.5*3e-5, momentum=0.9), lossFn="categorical_crossentropy", metrics=['accuracy'], useFor="train" ):
+def retrieveModelFromCheckpoint(checkpointsPath, trainFromEpoch, mode, optimizer=SGD(lr=0.5*3e-5, momentum=0.9), lossFn="categorical_crossentropy", metrics=['accuracy'], useFor="train" ):
     try:
-        modelCheckpointPath = checkpointsPath+"/train_{}.checkpoint".format(trainFromEpoch)
+        modelCheckpointPath = checkpointsPath+"/{}_train_{}.checkpoint".format(mode, trainFromEpoch)
         model = load_model(modelCheckpointPath)
 
         if useFor == "train":
@@ -165,27 +165,28 @@ def preTrainModel(imagesPath, checkpointsPath, statusesWritePath, mode, epochs =
 def trainModel(imagesPath, checkpointsPath, statusesWritePath, mode, trainFromEpoch, epochs=100):
 
     if mode == "transferlearning":
-        model = retrieveModelFromCheckpoint(checkpointsPath, trainFromEpoch, optimizer=SGD(lr=0.5*3e-5, momentum=0.9), useFor="train")
+        model = retrieveModelFromCheckpoint(checkpointsPath, trainFromEpoch, mode, optimizer=SGD(lr=0.5*3e-5, momentum=0.9), useFor="train")
 
     else:
         model = generateModel(mode, optimizer=SGD(lr=0.5*3e-5, momentum=0.9))
 
     train(model, epochs, imagesPath, statusesWritePath, mode, training_type='train')
 
-def testModel(imagesPath, checkpointsPath, statusesWritePath, modelEpoch):
+def testModel(imagesPath, checkpointsPath, statusesWritePath, modelEpoch, mode):
 
-    model = retrieveModelFromCheckpoint(checkpointsPath, modelEpoch, useFor="test")
+    model = retrieveModelFromCheckpoint(checkpointsPath, modelEpoch, mode, useFor="test")
     testingGenerator = createTestGenerator(imagesPath + '/test')
 
     testingGenerator.reset()
 
-    #getPredictions(model, testingGenerator)
+    getPredictions(model, testingGenerator)
 
     evaluateModel(model, testingGenerator)
 
 
 def getPredictions(model, testingGenerator):
     predictions = model.predict_generator(testingGenerator, steps=3998, use_multiprocessing=True, workers=5)
+    
     predictedLabels = np.argmax(predictions, axis=1)
     labels = testingGenerator.class_indices
     labels = dict((v, k) for k,v in labels.items())
@@ -246,4 +247,4 @@ if __name__ == '__main__':
         sys.exit(0)
 
     print("Running the trained model on test data")
-    testModel(imagesPath, checkpointsPath, statusesWritePath, startFromEpoch)
+    testModel(imagesPath, checkpointsPath, statusesWritePath, startFromEpoch, mode)
