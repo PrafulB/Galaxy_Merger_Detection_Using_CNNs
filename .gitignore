@@ -1,0 +1,8 @@
+*.ipynb
+.ipynb_checkpoints
+dataset/
+dataset.zip
+dirForSlurms/
+notCode/
+venv/
+checkpoints/
