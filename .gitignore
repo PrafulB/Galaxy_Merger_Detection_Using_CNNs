@@ -2,3 +2,8 @@
 *.out
 dataset/
 *.swp*
+*ipynb*
+venv/
+notCode/
+dirForSlurms/
+checkpoints/
