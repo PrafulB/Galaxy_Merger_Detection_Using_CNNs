@@ -6,3 +6,5 @@ dirForSlurms/
 notCode/
 venv/
 checkpoints/
+multiclass/dirForSlurms/
+multiclass/dataset/
