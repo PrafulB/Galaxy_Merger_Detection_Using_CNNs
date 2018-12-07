@@ -23,11 +23,12 @@ def createGenerator(class_path):
     translation_range=0.05
     zoom_base = (2**(1/2)) * ((1 - translation_range) ** -1)
     zoom_factor=2.
-    image_data_generator = image.ImageDataGenerator(rotation_range=360,
+    image_data_generator = image.ImageDataGenerator(rotation_range=180,
                                                     zoom_range=(zoom_base, zoom_base * zoom_factor),
                                                     width_shift_range=translation_range,
                                                     height_shift_range=translation_range,
-                                                    vertical_flip=True)
+                                                    vertical_flip=True,
+						    horizontal_flip=True)
 
     target_size=(299, 299)
     generator = image_data_generator.flow_from_directory(class_path,
@@ -46,15 +47,8 @@ def createGenerator(class_path):
         yield cumulative_batch, cumulative_labels
 
 def createTestGenerator(class_path):
-    translation_range=0.05
-    zoom_base = (2**(1/2)) * ((1 - translation_range) ** -1)
-    zoom_factor=2.
     
-    image_data_generator = image.ImageDataGenerator(rotation_range=360,
-                                                    zoom_range=(zoom_base, zoom_base * zoom_factor),
-                                                    width_shift_range=translation_range,
-                                                    height_shift_range=translation_range,
-                                                    vertical_flip=True)
+    image_data_generator = image.ImageDataGenerator()
 
     target_size=(299, 299)
     generator = image_data_generator.flow_from_directory(class_path,
@@ -86,7 +80,7 @@ def train(model, epochs, imagesPath, statusesWritePath, mode, training_type):
     validationGenerator = createGenerator(imagesPath + '/images_validation')
 
     steps_per_epoch = 3000
-    validation_steps = 1500
+    validation_steps = 1000
 
     for epoch in range(epochs):
 
@@ -116,7 +110,7 @@ def train(model, epochs, imagesPath, statusesWritePath, mode, training_type):
 
     return model
 
-def generateModel(mode, optimizer, lossFn="categorical_crossentropy", metrics=['accuracy']):
+def generateModel(mode, optimizer, lossFn="categorical_crossentropy", metrics=['accuracy', 'mse']):
     selectedModel = models[modelRunningNow] 
     if mode == "transferlearning":
         pretrainedModel = selectedModel(weights = "imagenet", include_top = False)
@@ -140,18 +134,22 @@ def generateModel(mode, optimizer, lossFn="categorical_crossentropy", metrics=['
     return model
 
 
-def retrieveModelFromCheckpoint(checkpointsPath, trainFromEpoch, mode, optimizer=SGD(lr=0.5*3e-5, momentum=0.9), lossFn="categorical_crossentropy", metrics=['accuracy'], useFor="train" ):
+def retrieveTransferLearningModel(checkpointsPath, trainFromEpoch, mode, optimizer=SGD(lr=0.5*3e-5, momentum=0.9), lossFn="categorical_crossentropy", metrics=['accuracy', 'mse'], useFor="train" ):
     try:
-        modelCheckpointPath = checkpointsPath+"/{}_train_{}.checkpoint".format(mode, trainFromEpoch)
-        model = load_model(modelCheckpointPath)
+        mergerModelCheckpointPath = checkpointsPath+"/{}_train_{}.checkpoint".format(mode, trainFromEpoch)
+        mergerModel = load_model(mergerModelCheckpointPath)
+        print(mergerModel)
+        mergerModel.layers.pop()
+        output = Dense(5, activation="softmax", name="morph_classif")(mergerModel.layers[-1].output)
+        model = Model(inputs=mergerModel.input, outputs=output)
+        print(model.summary(line_length=150))
 
         if useFor == "train":
             # Train the entire model now.
             for layer in model.layers:
                 layer.trainable = True
-
+            	
             model.compile(optimizer = optimizer, loss = lossFn, metrics = metrics)
-
         return model
     except Exception as e:
         print("Model not found for specified epoch!! Please try again with correct epoch.")
@@ -171,7 +169,7 @@ def preTrainModel(imagesPath, checkpointsPath, statusesWritePath, mode, epochs =
 def trainModel(imagesPath, checkpointsPath, statusesWritePath, mode, trainFromEpoch, epochs=100):
 
     if mode == "transferlearning":
-        model = retrieveModelFromCheckpoint(checkpointsPath, trainFromEpoch, mode, optimizer=SGD(lr=0.5*3e-5, momentum=0.9), useFor="train")
+        model = retrieveTransferLearningModel(checkpointsPath, trainFromEpoch, mode, optimizer=SGD(lr=0.5*3e-5, momentum=0.9), useFor="train")
 
     else:
         model = generateModel(mode, optimizer=SGD(lr=0.5*3e-5, momentum=0.9))
@@ -180,7 +178,7 @@ def trainModel(imagesPath, checkpointsPath, statusesWritePath, mode, trainFromEp
 
 def testModel(imagesPath, checkpointsPath, statusesWritePath, modelEpoch, mode):
 
-    model = retrieveModelFromCheckpoint(checkpointsPath, modelEpoch, mode, useFor="test")
+    model = retrieveTransferLearningModel(checkpointsPath, modelEpoch, mode, useFor="test")
     testingGenerator = createTestGenerator(imagesPath + '/test')
 
     testingGenerator.reset()
