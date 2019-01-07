@@ -2,6 +2,7 @@ import os
 import sys
 import json
 from ast import literal_eval
+from posterior import generate_submit
 
 models = ["xception", "inception", "vgg", "resnet"]
 statusesPath = os.environ["PROJECT_DIR"] + "/statuses"
@@ -66,14 +67,16 @@ bestModel = {
 }
 
 ensembledPredictions = ensemblePredictions()
-print(sys.argv)
-if len(sys.argv) <= 1:
-	ensembledPredictions = applyPosterior(ensembledPredictions)
+if len(sys.argv) > 1 and sys.argv[1] == "withPosterior":
+	ensembledPredictions = generate_submit(list(ensembledPredictions.values()), list(ensembledPredictions.keys()), 'posterior.test')
 
 correct = 0
+
 for key, value in ensembledPredictions.items():
-	if ("merger" in key and max(value) == value[0]) or  ("noninteracting" in key and max(value) == value[1]):
+	if ("merger" in key and value == "merger") or  ("noninteracting" in key and value == "noninteracting"):
 		correct += 1
+	else:
+		print(key,value)
 
 if len(sys.argv) > 1  and sys.argv[1] == "withPosterior":
 	print("Accuracy of Ensemble Model with Posterior: ", correct/totalImages)

@@ -24,12 +24,15 @@ def createGenerator(class_path):
     translation_range=0.05
     zoom_base = (2**(1/2)) * ((1 - translation_range) ** -1)
     zoom_factor=2.
-    image_data_generator = image.ImageDataGenerator(rotation_range=360,
+    if len(sys.argv) > 5 and sys.argv[5] == "augmented":
+        image_data_generator = image.ImageDataGenerator(rotation_range=360,
                                                     zoom_range=(zoom_base, zoom_base * zoom_factor),
                                                     width_shift_range=translation_range,
                                                     height_shift_range=translation_range,
                                                     vertical_flip=True)
-
+    else:	
+        image_data_generator = image.ImageDataGenerator()
+    
     target_size=(299, 299)
     generator = image_data_generator.flow_from_directory(class_path,
                                                         shuffle=True,
@@ -51,12 +54,15 @@ def createTestGenerator(class_path):
     zoom_base = (2**(1/2)) * ((1 - translation_range) ** -1)
     zoom_factor=2.
     
-    image_data_generator = image.ImageDataGenerator(rotation_range=360,
+    if len(sys.argv) > 5 and sys.argv[5] == "augmented":
+        image_data_generator = image.ImageDataGenerator(rotation_range=360,
                                                     zoom_range=(zoom_base, zoom_base * zoom_factor),
                                                     width_shift_range=translation_range,
                                                     height_shift_range=translation_range,
                                                     vertical_flip=True)
-
+    else: 
+        image_data_generator = image.ImageDataGenerator()
+    
     target_size=(299, 299)
     generator = image_data_generator.flow_from_directory(class_path,
                                                         shuffle=False,
@@ -99,7 +105,7 @@ def train(model, epochs, imagesPath, statusesWritePath, mode, training_type):
                                       validation_data = validationGenerator, 
                                       validation_steps = validation_steps, 
                                       use_multiprocessing=True, 
-                                      workers=8)
+                                      workers=6)
         
         print("Finished {} epoch #{}".format(training_type, epoch))
 
@@ -107,7 +113,12 @@ def train(model, epochs, imagesPath, statusesWritePath, mode, training_type):
         training_error, validation_error = (1. - history.history['acc'][0]), (1. - history.history['val_acc'][0])
         training_loss, validation_loss = history.history['loss'][0], history.history['val_loss'][0]
 
-        model.save(checkpointsPath + "/{}_{}_{}.checkpoint".format(mode, training_type, epoch))
+        if len(sys.argv) > 5 and sys.argv[5] == "augmented":
+            model.save(checkpointsPath + "/{}_{}_{}_augmented.checkpoint".format(mode, training_type, epoch))
+            statusesFilePath = statusesWritePath + "/{}_{}_{}_augmented.status".format(mode, training_type, epoch)
+        else:
+            model.save(checkpointsPath + "/{}_{}_{}.checkpoint".format(mode, training_type, epoch))
+            statusesFilePath = statusesWritePath + "/{}_{}_{}.status".format(mode, training_type, epoch)
         writeStatusToFile(statusesWritePath + "/{}_{}_{}.status".format(mode, training_type, epoch),
                      epoch,
                      training_error,
@@ -160,7 +171,7 @@ def retrieveModelFromCheckpoint(checkpointsPath, trainFromEpoch, mode, optimizer
         sys.exit(0)
 
 
-def preTrainModel(imagesPath, checkpointsPath, statusesWritePath, mode, epochs = 5):
+def preTrainModel(imagesPath, checkpointsPath, statusesWritePath, mode, epochs = 3):
 
     model = generateModel(mode, optimizer="adam")
 
@@ -193,7 +204,13 @@ def testModel(imagesPath, checkpointsPath, statusesWritePath, modelEpoch, mode):
 
 def getPredictions(model, statusesWritePath, testingGenerator):
     predictions = model.predict_generator(testingGenerator, steps=3998, use_multiprocessing=True, workers=5)
-    with open(statusesWritePath + "/probPreds", 'w') as fp:
+    if len(sys.argv) > 5 and sys.argv[5] == "augmented":
+        predsFilename = statusesWritePath + "/augmentedProbPreds"
+        labelsFilename = statusesWritePath + "/augmentedLabelPreds"
+    else:
+        predsFilename = statusesWritePath + "/probPreds"
+        labelsFilename = statusesWritePath + "/labelPreds"
+    with open(predsFilename, 'w') as fp:
         fp.write(str(list(zip(testingGenerator.filenames, predictions))))
     
     predictedLabels = np.argmax(predictions, axis=1)
@@ -203,7 +220,7 @@ def getPredictions(model, statusesWritePath, testingGenerator):
 
     predictionsByFileName = list(zip(testingGenerator.filenames, predictedLabels))
 
-    with open(statusesWritePath + "/labelPreds", 'w') as fp:
+    with open(labelsFilename, 'w') as fp:
         fp.write(str(predictionsByFileName))
 
 
@@ -225,7 +242,6 @@ if __name__ == '__main__':
     imagesPath = os.environ['PROJECT_DIR'] + "/dataset"
     checkpointsPath = os.environ['PROJECT_DIR'] + "/checkpoints" + "/" + modelRunningNow
     statusesWritePath = os.environ['PROJECT_DIR'] + "/statuses" + "/" + modelRunningNow
-    print(sys.argv)
 
     try:
         mode = "transferlearning" if sys.argv[1] == "transferlearning" else "randinit"
